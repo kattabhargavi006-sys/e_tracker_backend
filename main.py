@@ -1,84 +1,116 @@
 from fastapi import FastAPI
 import mysql.connector
-conn_obj=mysql.connector.connect(
-    host="localhost",
-    user="root",
-    database="expense_tracker",
-    password="bhargavi"
-)
-cursor_obj=conn_obj.cursor(dictionary=True)
+from fastapi.middleware.cors import CORSMiddleware
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 app = FastAPI()
 
-cursor_obj.execute("""
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
+
+
+def get_connection():
+
+    conn = mysql.connector.connect(
+        host=os.getenv("db_host"),
+        user=os.getenv("db_user"),
+        password=os.getenv("db_password"),
+        database=os.getenv("db_name"),
+        port=int(os.getenv("db_port"))
+    )
+
+    return conn
+
+
+conn = get_connection()
+cursor = conn.cursor()
+
+cursor.execute("""
 CREATE TABLE IF NOT EXISTS expenses(
     expense_id INT AUTO_INCREMENT PRIMARY KEY,
-    title VARCHAR(255),
+    title VARCHAR(200),
     amount FLOAT,
     category VARCHAR(100),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    payment_method VARCHAR(100),
+    expense_date DATE,
+    description TEXT
 )
 """)
 
 conn.commit()
 
-@app.post("/add_expense")
-def add_expense(expense: dict):
-    title=expense.get("title")
-    amount=expense.get("amount")
-    category=expense.get("category")
-    query="insert into expenses(title,amount,category)values(%s,%s,%s)"
-    data=(title,amount,category)
-    cursor_obj.execute(query,data)
-    conn_obj.commit()
-    return{
-        "AddExpense":"expense added successfully..."
-    }
-@app.get("/ViewExpenses")
-def view_expenses():
-    query="select * from expenses"
-    cursor_obj.execute(query)
-    all_expenses=cursor_obj.fetchall()
-    return all_expenses
-@app.put("/update_expense/{expense_id}")
-def update_expense(expense_id: int, expense: dict):
-    title=expense.get("title")
-    amount=expense.get("amount")
-    category=expense.get("category")
-    query="update expenses set title =%s,amount=%s,category=%s where expense_id=%s"
-    values=(title,amount,category,expense_id)
-    cursor_obj.execute(query,values)
-    conn_obj.commit()
-    return{
-        "updated_msg":"expenses updated successfully.."
-    }
-@app.delete("/delete_expenses/{expense_id}")
-def delete_expense(expense_id: int):
-    query = "DELETE FROM expenses WHERE expense_id=%s"
-    cursor_obj.execute(query, (expense_id,))
-    conn_obj.commit()
+cursor.close()
+conn.close()
+
+
+@app.get("/")
+def home():
+
     return {
-        "delete_msg": "Expense Deleted Successfully"
+        "message": "API Running Successfully"
     }
 
-@app.get("/search_expenses")
-def search_expenses(category:str):
-    query="select * from expenses where category=%s"
-    cursor_obj.execute(query,(category,))
-    searched_data=cursor_obj.fetchall()
-    return searched_data
 
-@app.get("/sort_expenses")
-def sort_expenses(order:str):
-    if order=="low_to_high":
-        query="select * from expenses order by amount asc"
-    else:
-        query="select * from expenses order by amount desc"
-    cursor_obj.execute(query)
-    sorted_data=cursor_obj.fetchall()
-    return sorted_data
-@app.get("/filter_expenses")
-def filter_expenses(amount:float):
-    query="select * from expenses where amount >=%s"
-    cursor_obj.execute(query,(amount,))
-    filtered_data=cursor_obj.fetchall()
-    return filtered_data
+@app.post("/add_expense")
+def add_expense(payload: dict):
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    query = """
+    INSERT INTO expenses
+    (title, amount, category, payment_method, expense_date, description)
+    VALUES (%s, %s, %s, %s, %s, %s)
+    """
+
+    values = (
+        payload["title"],
+        payload["amount"],
+        payload["category"],
+        payload["payment_method"],
+        payload["expense_date"],
+        payload["description"]
+    )
+
+    cursor.execute(query, values)
+
+    conn.commit()
+
+    cursor.close()
+    conn.close()
+
+    return {
+        "message": "Expense Added Successfully"
+    }
+
+
+@app.get("/get_expenses")
+def get_expenses():
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    query = """
+    SELECT *
+    FROM expenses
+    ORDER BY expense_id DESC
+    """
+
+    cursor.execute(query)
+
+    data = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return {
+        "expenses": data
+    }
