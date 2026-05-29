@@ -20,11 +20,11 @@ app.add_middleware(
 def get_connection():
 
     conn = mysql.connector.connect(
-        host=os.getenv("host"),
-        user=os.getenv("user"),
-        password=os.getenv("password"),
-        database=os.getenv("database_name"),
-        port=int(os.getenv("port"))
+        host=os.getenv("Host"),
+        user=os.getenv("User"),
+        password=os.getenv("Password"),
+        database=os.getenv("Database_name"),
+        port=int(os.getenv("Port"))
     )
 
     return conn
